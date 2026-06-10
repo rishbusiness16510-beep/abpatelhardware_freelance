@@ -1,0 +1,27 @@
+# Dependency directories
+node_modules/
+
+# Compilation output
+dist/
+build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+.env.development
+
+# Editor junk and OS files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo

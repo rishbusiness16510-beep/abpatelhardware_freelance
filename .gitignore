@@ -1,0 +1,45 @@
+# Dependency directories (globally ignore all node_modules)
+**/node_modules/
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+.env.development
+*.env
+*.env.*
+**/.env
+**/.env.*
+
+# Firebase Admin SDK & Credentials (CRITICAL SECURITY)
+abpatel-a4c51-firebase-adminsdk-fbsvc-ca8fedf7fd.json
+*-adminsdk-*.json
+*.pem
+*.key
+credentials.json
+service-account.json
+
+# Builds
+dist/
+build/
+**/dist/
+**/build/
+
+# Editor/OS directories
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+#documents
+docs/
+tasks/
