@@ -1,10 +1,11 @@
 import axios from 'axios';
 
 const isProd = import.meta.env.VITE_IS_PROD === 'true';
-const baseURL = import.meta.env.VITE_API_URL || (isProd ? import.meta.env.VITE_API_URL_PROD : import.meta.env.VITE_API_URL_DEV);
+const hostURL = import.meta.env.VITE_API_URL || (isProd ? import.meta.env.VITE_API_URL_PROD : import.meta.env.VITE_API_URL_DEV) || 'http://localhost:5000';
+const baseURL = hostURL.endsWith('/api') ? hostURL : `${hostURL}/api`;
 
 const api = axios.create({
-  baseURL: baseURL || 'http://localhost:5000/api',
+  baseURL,
   headers: {
     'Content-Type': 'application/json',
   },

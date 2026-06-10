@@ -12,8 +12,9 @@ export default function OrderSuccess() {
 
     try {
       const isProd = import.meta.env.PROD;
-      const baseURL = isProd ? import.meta.env.VITE_API_URL_PROD : import.meta.env.VITE_API_URL_DEV;
-      const url = `${baseURL || 'http://localhost:5000/api'}/orders/${orderId}/invoice`;
+      const hostURL = (isProd ? import.meta.env.VITE_API_URL_PROD : import.meta.env.VITE_API_URL_DEV) || 'http://localhost:5000';
+      const baseURL = hostURL.endsWith('/api') ? hostURL : `${hostURL}/api`;
+      const url = `${baseURL}/orders/${orderId}/invoice`;
 
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to download invoice');

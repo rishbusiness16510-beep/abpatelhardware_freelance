@@ -39,7 +39,10 @@ export default function MyOrders() {
   }, []);
 
   const downloadInvoice = (orderId: string) => {
-    window.open(`${import.meta.env.VITE_API_URL_DEV?.replace('/api', '') || 'http://localhost:5000'}/api/orders/${orderId}/invoice`, '_blank');
+    const isProd = import.meta.env.VITE_IS_PROD === 'true';
+    const hostURL = import.meta.env.VITE_API_URL || (isProd ? import.meta.env.VITE_API_URL_PROD : import.meta.env.VITE_API_URL_DEV) || 'http://localhost:5000';
+    const cleanHostURL = hostURL.endsWith('/api') ? hostURL.slice(0, -4) : hostURL;
+    window.open(`${cleanHostURL}/api/orders/${orderId}/invoice`, '_blank');
   };
 
   if (loading) {
