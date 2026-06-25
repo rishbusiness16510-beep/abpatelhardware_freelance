@@ -68,13 +68,13 @@ export default function HeritageBanner() {
           {/* Right: image */}
           <div className="flex-1 max-w-md w-full">
             <div
-              className="relative overflow-hidden"
+              className="relative overflow-hidden animate-fade-in"
               style={{ borderRadius: '2px', aspectRatio: '4/3' }}
             >
               <img
-                src="https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?q=80&w=1000&auto=format&fit=crop"
-                alt="Premium hardware craftsmanship"
-                className="w-full h-full object-cover"
+                src="/images/brand-signboard.png"
+                alt="ABPATEL Showroom Brand Signboard"
+                className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                 loading="lazy"
               />
               {/* Gold frame accent */}

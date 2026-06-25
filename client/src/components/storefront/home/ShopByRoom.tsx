@@ -7,37 +7,37 @@ const FALLBACK_ROOMS = [
   {
     id: 'kitchen',
     title: 'Kitchen',
-    imageUrl: 'https://images.unsplash.com/photo-1556909114-44e3e70034e2?q=80&w=1200&auto=format&fit=crop',
+    imageUrl: '/images/cabinet-hardware.png',
     linkUrl: '/products?room=kitchen',
   },
   {
     id: 'bathroom',
     title: 'Bathroom',
-    imageUrl: 'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?q=80&w=1200&auto=format&fit=crop',
+    imageUrl: '/images/bathroom-fittings.png',
     linkUrl: '/products?room=bathroom',
   },
   {
     id: 'wardrobe',
     title: 'Wardrobe',
-    imageUrl: 'https://images.unsplash.com/photo-1616486029423-aaa4789e8c9a?q=80&w=1200&auto=format&fit=crop',
+    imageUrl: '/images/cabinet-knobs.png',
     linkUrl: '/products?room=wardrobe',
   },
   {
     id: 'main-door',
     title: 'Main Door',
-    imageUrl: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=1200&auto=format&fit=crop',
+    imageUrl: '/images/luxury-pull-handles.png',
     linkUrl: '/products?room=main-door',
   },
   {
     id: 'living',
     title: 'Living Room',
-    imageUrl: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?q=80&w=1200&auto=format&fit=crop',
+    imageUrl: '/images/furniture-legs.png',
     linkUrl: '/products?room=living-room',
   },
   {
     id: 'office',
     title: 'Office',
-    imageUrl: 'https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=1200&auto=format&fit=crop',
+    imageUrl: '/images/safety-lockers.png',
     linkUrl: '/products?room=office',
   },
 ];
@@ -104,9 +104,12 @@ export default function ShopByRoom() {
               <Link
                 key={room.id}
                 to={linkTo}
-                className={`group relative overflow-hidden block ${isWide ? 'col-span-2 md:col-span-1' : ''}`}
+                className={`group relative overflow-hidden block ${
+                  isWide
+                    ? 'col-span-2 md:col-span-1 aspect-[16/9] md:aspect-[4/3]'
+                    : 'col-span-1 aspect-[4/3]'
+                }`}
                 style={{
-                  aspectRatio: isWide ? '16/9' : '4/3',
                   borderRadius: '2px',
                 }}
               >
