@@ -4,7 +4,7 @@ import type { Response } from 'express';
 interface InvoiceItem {
   productName: string;
   variantLabel: string | null;
-  sku: string;
+  productCode: string | null;
   quantity: number;
   unitPrice: string;
   gstRate: string;
@@ -121,14 +121,14 @@ export function generateInvoicePDF(data: InvoiceData, res: Response): void {
   y = Math.max(y, shipY) + 16;
 
   // ── ITEMS TABLE ──
-  const colWidths = { item: contentWidth * 0.35, sku: contentWidth * 0.12, qty: contentWidth * 0.08, rate: contentWidth * 0.15, gst: contentWidth * 0.12, total: contentWidth * 0.18 };
+  const colWidths = { item: contentWidth * 0.33, code: contentWidth * 0.14, qty: contentWidth * 0.08, rate: contentWidth * 0.15, gst: contentWidth * 0.12, total: contentWidth * 0.18 };
 
   // Header row
   doc.rect(marginLeft, y, contentWidth, 22).fill(COLORS.primary);
   doc.fillColor(COLORS.white).fontSize(8).font('Helvetica-Bold');
   let colX = marginLeft + 8;
   doc.text('ITEM', colX, y + 6, { width: colWidths.item }); colX += colWidths.item;
-  doc.text('SKU', colX, y + 6, { width: colWidths.sku }); colX += colWidths.sku;
+  doc.text('PRODUCT CODE', colX, y + 6, { width: colWidths.code, ellipsis: true }); colX += colWidths.code;
   doc.text('QTY', colX, y + 6, { width: colWidths.qty, align: 'center' }); colX += colWidths.qty;
   doc.text('RATE', colX, y + 6, { width: colWidths.rate, align: 'right' }); colX += colWidths.rate;
   doc.text('GST', colX, y + 6, { width: colWidths.gst, align: 'center' }); colX += colWidths.gst;
@@ -146,7 +146,7 @@ export function generateInvoicePDF(data: InvoiceData, res: Response): void {
 
     doc.fillColor(COLORS.text);
     doc.text(itemLabel, colX, y + 6, { width: colWidths.item - 8, ellipsis: true }); colX += colWidths.item;
-    doc.fillColor(COLORS.muted).text(item.sku, colX, y + 6, { width: colWidths.sku }); colX += colWidths.sku;
+    doc.fillColor(COLORS.muted).text(item.productCode || '—', colX, y + 6, { width: colWidths.code - 8, ellipsis: true }); colX += colWidths.code;
     doc.fillColor(COLORS.text).text(item.quantity.toString(), colX, y + 6, { width: colWidths.qty, align: 'center' }); colX += colWidths.qty;
     doc.text(formatCurrency(item.unitPrice), colX, y + 6, { width: colWidths.rate, align: 'right' }); colX += colWidths.rate;
     doc.fillColor(COLORS.muted).text(`${item.gstRate}%`, colX, y + 6, { width: colWidths.gst, align: 'center' }); colX += colWidths.gst;

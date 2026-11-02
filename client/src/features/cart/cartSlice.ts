@@ -7,7 +7,7 @@ export interface CartItem {
   variantId: string;
   name: string;
   slug: string;
-  sku: string;
+  productCode: string | null;
   imageUrl: string | null;
   finish: string | null;
   size: string | null;

@@ -24,7 +24,7 @@ interface Product {
   id: string;
   name: string;
   slug: string;
-  sku: string;
+  productCode: string | null;
   description: string;
   categoryId: string;
   brandId: string | null;
@@ -33,12 +33,12 @@ interface Product {
   status: 'ACTIVE' | 'INACTIVE';
   isFeatured: boolean;
   isNewArrival: boolean;
-  images: { id: string; url: string; altText: string | null }[];
+  images: { id: string; url: string; altText: string | null; variantId: string | null }[];
   variants: {
     id: string;
     finish: string | null;
     size: string | null;
-    sku: string;
+    productCode: string | null;
     sellingPrice: string;
     mrp: string;
     isOnSale: boolean;

@@ -21,7 +21,7 @@ interface OrderItem {
   variantId: string | null;
   productName: string;
   variantLabel: string | null;
-  sku: string;
+  productCode: string | null;
   quantity: number;
   unitPrice: string;
   gstRate: string;
@@ -132,7 +132,9 @@ export default function OrderDetail() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-text truncate">{item.productName}</p>
                     {item.variantLabel && <p className="text-xs text-text-muted">{item.variantLabel}</p>}
-                    <p className="text-xs text-text-muted">SKU: {item.sku} · Qty: {item.quantity}</p>
+                    <p className="text-xs text-text-muted">
+                      {item.productCode && <>Code: {item.productCode} · </>}Qty: {item.quantity}
+                    </p>
                   </div>
                   <p className="text-sm font-medium text-text">₹{parseFloat(item.totalPrice).toLocaleString('en-IN')}</p>
                 </div>

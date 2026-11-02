@@ -34,7 +34,7 @@ router.get('/', async (req, res) => {
       conditions.push(
         or(
           like(products.name, `%${search}%`),
-          like(products.sku, `%${search}%`)
+          like(products.productCode, `%${search}%`)
         )
       );
     }
@@ -87,7 +87,7 @@ router.get('/', async (req, res) => {
         brand: true,
         variants: true,
         images: {
-          orderBy: (images: any, { asc }: any) => [asc(images.sortOrder)],
+          orderBy: (images: any, { asc }: any) => [sql`${images.variantId} ASC NULLS FIRST`, asc(images.sortOrder)],
         },
       }
     });
@@ -145,7 +145,7 @@ router.get('/:identifier', async (req, res) => {
         brand: true,
         variants: true,
         images: {
-          orderBy: (images, { asc }) => [asc(images.sortOrder)],
+          orderBy: (images, { asc }) => [sql`${images.variantId} ASC NULLS FIRST`, asc(images.sortOrder)],
         },
       }
     });
@@ -204,7 +204,7 @@ router.post('/bulk', authenticate, requireAdmin, async (req, res) => {
         const [insertedProduct] = await tx.insert(products).values({
           name: prodData.name,
           slug: slug,
-          sku: prodData.sku,
+          productCode: prodData.productCode || null,
           description: prodData.description || null,
           categoryId,
           brandId,
@@ -218,7 +218,7 @@ router.post('/bulk', authenticate, requireAdmin, async (req, res) => {
         if (prodData.variants && prodData.variants.length > 0) {
           const variantValues = prodData.variants.map((v: any) => ({
             productId: insertedProduct.id,
-            sku: v.sku,
+            productCode: v.productCode || null,
             finish: v.finish || null,
             size: v.size || null,
             mrp: v.mrp ? v.mrp.toString() : '0',
@@ -246,7 +246,7 @@ router.post('/bulk', authenticate, requireAdmin, async (req, res) => {
   } catch (error: any) {
     logger.error('Products API', 'Error in bulk upload', { error: error.message });
     if (error.code === '23505') {
-      res.status(409).json({ message: 'Product slug or SKU must be unique. A product with this SKU/Slug already exists.' });
+      res.status(409).json({ message: 'Product slug or product code must be unique. A product with this code/slug already exists.' });
       return;
     }
     res.status(400).json({ message: error.message || 'Bulk upload failed' });
@@ -257,14 +257,14 @@ router.post('/bulk', authenticate, requireAdmin, async (req, res) => {
 router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const { 
-      name, slug, sku, description, categoryId, brandId, roomTags, specifications, 
+      name, slug, productCode, description, categoryId, brandId, roomTags, specifications, 
       gstRate, lowStockThreshold, status, isFeatured, isNewArrival, seoTitle, seoDescription,
       variants, // Array of variants
-      images, // Array of {url, altText, sortOrder, variantId?}
+      images, // Array of {url, altText, sortOrder, tempVariantId?}
     } = req.body;
 
-    if (!name || !slug || !sku || !categoryId) {
-      res.status(400).json({ message: 'Name, slug, sku, and categoryId are required' });
+    if (!name || !slug || !categoryId) {
+      res.status(400).json({ message: 'Name, slug, and categoryId are required' });
       return;
     }
 
@@ -272,7 +272,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
     const newProduct = await db.transaction(async (tx) => {
       // 1. Create product
       const createdProducts = await tx.insert(products).values({
-        name, slug, sku, description, categoryId, brandId, roomTags, specifications,
+        name, slug, productCode: productCode || null, description, categoryId, brandId, roomTags, specifications,
         gstRate, lowStockThreshold, status, isFeatured, isNewArrival, seoTitle, seoDescription
       }).returning();
       
@@ -287,7 +287,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
             productId,
             finish: variant.finish,
             size: variant.size,
-            sku: variant.sku,
+            productCode: variant.productCode || null,
             mrp: variant.mrp,
             sellingPrice: variant.sellingPrice,
             stockQuantity: variant.stockQuantity,
@@ -303,12 +303,12 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 
       // 3. Create images if provided
       if (images && images.length > 0) {
-        const imageValues = images.map((img: any) => ({
+        const imageValues = images.map((img: any, index: number) => ({
           productId,
-          variantId: img.tempVariantId ? createdVariantsMap[img.tempVariantId] : null,
+          variantId: img.tempVariantId ? (createdVariantsMap[img.tempVariantId] || null) : null,
           url: img.url,
           altText: img.altText,
-          sortOrder: img.sortOrder || 0,
+          sortOrder: img.sortOrder ?? index,
         }));
         await tx.insert(productImages).values(imageValues);
       }
@@ -326,7 +326,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
   } catch (error: any) {
     logger.error('Products API', 'Error creating product', { error: error.message });
     if (error.code === '23505') {
-      res.status(409).json({ message: 'Product slug or SKU must be unique' });
+      res.status(409).json({ message: 'Product slug or product code must be unique' });
       return;
     }
     res.status(500).json({ message: 'Internal server error' });
@@ -338,14 +338,14 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const id = req.params.id as string;
     const { 
-      name, slug, sku, description, categoryId, brandId, roomTags, specifications, 
+      name, slug, productCode, description, categoryId, brandId, roomTags, specifications, 
       gstRate, lowStockThreshold, status, isFeatured, isNewArrival, seoTitle, seoDescription,
       variants, // Array of variants
       images, // Array of {url, altText, sortOrder, tempVariantId?}
     } = req.body;
 
-    if (!name || !slug || !sku || !categoryId) {
-      res.status(400).json({ message: 'Name, slug, sku, and categoryId are required' });
+    if (!name || !slug || !categoryId) {
+      res.status(400).json({ message: 'Name, slug, and categoryId are required' });
       return;
     }
 
@@ -362,7 +362,7 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
     await db.transaction(async (tx) => {
       // 1. Update basic product info
       await tx.update(products).set({
-        name, slug, sku, description, categoryId, brandId, roomTags, specifications,
+        name, slug, productCode: productCode || null, description, categoryId, brandId, roomTags, specifications,
         gstRate, lowStockThreshold, status, isFeatured, isNewArrival, seoTitle, seoDescription,
         updatedAt: new Date()
       }).where(eq(products.id, id));
@@ -382,7 +382,7 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
             await tx.update(productVariants).set({
               finish: variant.finish,
               size: variant.size,
-              sku: variant.sku,
+              productCode: variant.productCode || null,
               mrp: variant.mrp,
               sellingPrice: variant.sellingPrice,
               stockQuantity: variant.stockQuantity,
@@ -398,7 +398,7 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
               productId: id,
               finish: variant.finish,
               size: variant.size,
-              sku: variant.sku,
+              productCode: variant.productCode || null,
               mrp: variant.mrp,
               sellingPrice: variant.sellingPrice,
               stockQuantity: variant.stockQuantity,
@@ -412,21 +412,24 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
         }
       }
 
-      // 4. Delete variants that were removed in the form
+      // 4. Clear existing images first — they reference variants, so they must go
+      //    before any variant is deleted.
+      await tx.delete(productImages).where(eq(productImages.productId, id));
+
+      // 5. Delete variants that were removed in the form
       const toDeleteIds = dbVariantIds.filter(vId => !payloadVariantIds.includes(vId));
       if (toDeleteIds.length > 0) {
         await tx.delete(productVariants).where(inArray(productVariants.id, toDeleteIds));
       }
 
-      // 5. Delete and re-insert images
-      await tx.delete(productImages).where(eq(productImages.productId, id));
+      // 6. Re-insert images, re-pointing each one at its variant's real ID
       if (images && images.length > 0) {
-        const imageValues = images.map((img: any) => ({
+        const imageValues = images.map((img: any, index: number) => ({
           productId: id,
           variantId: img.tempVariantId ? (createdVariantsMap[img.tempVariantId] || null) : null,
           url: img.url,
           altText: img.altText,
-          sortOrder: img.sortOrder || 0,
+          sortOrder: img.sortOrder ?? index,
         }));
         await tx.insert(productImages).values(imageValues);
       }
@@ -438,7 +441,7 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
       with: { 
         variants: true, 
         images: {
-          orderBy: (images: any, { asc }: any) => [asc(images.sortOrder)],
+          orderBy: (images: any, { asc }: any) => [sql`${images.variantId} ASC NULLS FIRST`, asc(images.sortOrder)],
         }
       }
     });
@@ -447,7 +450,7 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   } catch (error: any) {
     logger.error('Products API', 'Error updating product', { error: error.message });
     if (error.code === '23505') {
-      res.status(409).json({ message: 'Product slug or SKU must be unique' });
+      res.status(409).json({ message: 'Product slug or product code must be unique' });
       return;
     }
     res.status(500).json({ message: 'Internal server error' });

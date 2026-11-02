@@ -52,7 +52,7 @@ export const products = pgTable('products', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
-  sku: text('sku').notNull().unique(),
+  productCode: text('product_code').unique(),
   description: text('description'),
   categoryId: uuid('category_id').references(() => categories.id).notNull(),
   brandId: uuid('brand_id').references(() => brands.id),
@@ -75,7 +75,7 @@ export const productVariants = pgTable('product_variants', {
   productId: uuid('product_id').references(() => products.id, { onDelete: 'cascade' }).notNull(),
   finish: text('finish'),
   size: text('size'),
-  sku: text('sku').notNull(),
+  productCode: text('product_code'),
   mrp: decimal('mrp').notNull(),
   sellingPrice: decimal('selling_price').notNull(),
   stockQuantity: integer('stock_quantity').default(0).notNull(),
@@ -87,7 +87,7 @@ export const productVariants = pgTable('product_variants', {
 export const productImages = pgTable('product_images', {
   id: uuid('id').defaultRandom().primaryKey(),
   productId: uuid('product_id').references(() => products.id, { onDelete: 'cascade' }).notNull(),
-  variantId: uuid('variant_id').references(() => productVariants.id), // Optional, for variant specific images
+  variantId: uuid('variant_id').references(() => productVariants.id, { onDelete: 'set null' }), // Optional — scopes the image to one variant
   url: text('url').notNull(),
   altText: text('alt_text'),
   sortOrder: integer('sort_order').default(0).notNull(),
@@ -137,7 +137,7 @@ export const orderItems = pgTable('order_items', {
   variantId: uuid('variant_id').references(() => productVariants.id),
   productName: text('product_name').notNull(), // Snapshot
   variantLabel: text('variant_label'),
-  sku: text('sku').notNull(),
+  productCode: text('product_code'),
   quantity: integer('quantity').notNull(),
   unitPrice: decimal('unit_price').notNull(),
   gstRate: decimal('gst_rate').notNull(),

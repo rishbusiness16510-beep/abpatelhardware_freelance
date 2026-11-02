@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Save, ArrowLeft, Plus, Trash2, Loader2, ImagePlus, RefreshCw, Wand2, Eye, EyeOff } from 'lucide-react';
+import { Save, ArrowLeft, Plus, Trash2, Loader2, ImagePlus, RefreshCw, Wand2, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../../lib/api';
 import Button from '../../components/ui/Button';
 import { generateSlug, generateSeoTitle, generateSeoDescription } from '../../lib/utils';
@@ -10,7 +10,7 @@ interface VariantForm {
   tempId: string;
   finish: string;
   size: string;
-  sku: string;
+  productCode: string;
   mrp: string;
   sellingPrice: string;
   stockQuantity: number;
@@ -19,10 +19,11 @@ interface VariantForm {
 }
 
 interface ImageForm {
+  uid: string;
   url: string;
   altText: string;
   sortOrder: number;
-  tempVariantId: string;
+  tempVariantId: string; // '' = shared across every variant
 }
 
 interface Category { id: string; name: string; }
@@ -32,7 +33,7 @@ interface VariantApi {
   id?: string;
   finish?: string | null;
   size?: string | null;
-  sku: string;
+  productCode?: string | null;
   mrp: string | number;
   sellingPrice: string | number;
   stockQuantity?: number;
@@ -52,13 +53,21 @@ const newVariant = (): VariantForm => ({
   tempId: crypto.randomUUID(),
   finish: '',
   size: '',
-  sku: '',
+  productCode: '',
   mrp: '',
   sellingPrice: '',
   stockQuantity: 0,
   isOnSale: false,
   salePrice: '',
 });
+
+// Label a variant by whatever distinguishes it — finish/size, else its code, else its position
+function variantLabel(v: VariantForm, index: number) {
+  const parts = [v.finish, v.size].filter(Boolean);
+  if (parts.length > 0) return parts.join(' / ');
+  if (v.productCode) return v.productCode;
+  return `Variant ${index + 1}`;
+}
 
 // Character count colour
 function charCountColor(len: number, max: number) {
@@ -76,7 +85,7 @@ export default function ProductForm() {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
-  const [sku, setSku] = useState('');
+  const [productCode, setProductCode] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [brandId, setBrandId] = useState('');
@@ -102,7 +111,7 @@ export default function ProductForm() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [uploadingGroup, setUploadingGroup] = useState<string | null>(null);
   const [loadingProduct, setLoadingProduct] = useState(false);
 
   // ── Derived: auto-generate SEO from current form state ──────────────────
@@ -153,7 +162,7 @@ export default function ProductForm() {
           setName(prod.name || '');
           setSlug(prod.slug || '');
           setSlugManuallyEdited(true); // Editing: keep existing slug
-          setSku(prod.sku || '');
+          setProductCode(prod.productCode || '');
           setDescription(prod.description || '');
           setCategoryId(prod.categoryId || '');
           setBrandId(prod.brandId || '');
@@ -176,7 +185,7 @@ export default function ProductForm() {
               tempId: v.id || crypto.randomUUID(),
               finish: v.finish || '',
               size: v.size || '',
-              sku: v.sku || '',
+              productCode: v.productCode || '',
               mrp: v.mrp ? String(v.mrp) : '',
               sellingPrice: v.sellingPrice ? String(v.sellingPrice) : '',
               stockQuantity: v.stockQuantity ?? 0,
@@ -187,6 +196,7 @@ export default function ProductForm() {
 
           if (prod.images && prod.images.length > 0) {
             setImages(prod.images.map((img: ImageApi) => ({
+              uid: crypto.randomUUID(),
               url: img.url || '',
               altText: img.altText || '',
               sortOrder: img.sortOrder || 0,
@@ -205,9 +215,10 @@ export default function ProductForm() {
   }, [id, isEditing]);
 
 
-  const handleImageUpload = async (files: FileList | null) => {
+  // Photos are uploaded straight into a group: '' for shared, or a variant's tempId
+  const handleImageUpload = async (files: FileList | null, groupKey: string) => {
     if (!files || files.length === 0) return;
-    setUploading(true);
+    setUploadingGroup(groupKey);
     try {
       const formData = new FormData();
       Array.from(files).forEach(f => formData.append('images', f));
@@ -217,11 +228,12 @@ export default function ProductForm() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      const newImages: ImageForm[] = res.data.map((img: { url: string }, i: number) => ({
+      const newImages: ImageForm[] = res.data.map((img: { url: string }) => ({
+        uid: crypto.randomUUID(),
         url: img.url,
         altText: '',
-        sortOrder: images.length + i,
-        tempVariantId: '',
+        sortOrder: 0, // Recomputed per group on submit
+        tempVariantId: groupKey,
       }));
 
       setImages(prev => [...prev, ...newImages]);
@@ -230,24 +242,68 @@ export default function ProductForm() {
       const error = err as { response?: { data?: { message?: string } } };
       alert(error.response?.data?.message || 'Image upload failed. Please try again.');
     } finally {
-      setUploading(false);
+      setUploadingGroup(null);
     }
   };
 
-  const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+  const removeImage = (uid: string) => {
+    setImages(prev => prev.filter(img => img.uid !== uid));
+  };
+
+  const moveImageToGroup = (uid: string, groupKey: string) => {
+    setImages(prev => prev.map(img => img.uid === uid ? { ...img, tempVariantId: groupKey } : img));
+  };
+
+  // Reorder within a group — the first photo of a group is the one shown by default
+  const shiftImage = (uid: string, direction: -1 | 1) => {
+    setImages(prev => {
+      const target = prev.find(img => img.uid === uid);
+      if (!target) return prev;
+      const siblings = prev.filter(img => img.tempVariantId === target.tempVariantId);
+      const pos = siblings.findIndex(img => img.uid === uid);
+      const swapWith = siblings[pos + direction];
+      if (!swapWith) return prev;
+      return prev.map(img => {
+        if (img.uid === uid) return swapWith;
+        if (img.uid === swapWith.uid) return target;
+        return img;
+      });
+    });
   };
 
   const addVariant = () => setVariants(prev => [...prev, newVariant()]);
 
   const removeVariant = (index: number) => {
     if (variants.length <= 1) return;
+    const removed = variants[index];
     setVariants(prev => prev.filter((_, i) => i !== index));
+    // Don't silently drop its photos — hand them back to the shared group
+    setImages(prev => prev.map(img =>
+      img.tempVariantId === removed.tempId ? { ...img, tempVariantId: '' } : img
+    ));
   };
 
   const updateVariant = (index: number, field: keyof VariantForm, value: string | number | boolean) => {
     setVariants(prev => prev.map((v, i) => i === index ? { ...v, [field]: value } : v));
   };
+
+  // Photos bucketed by group key, preserving the order they sit in within `images`
+  const imagesByGroup = new Map<string, ImageForm[]>();
+  images.forEach(img => {
+    const key = img.tempVariantId || '';
+    const bucket = imagesByGroup.get(key);
+    if (bucket) bucket.push(img);
+    else imagesByGroup.set(key, [img]);
+  });
+
+  const imageGroups = [
+    { key: '', label: 'Shared photos', hint: 'Used for any variant that has no photos of its own.' },
+    ...variants.map((v, i) => ({
+      key: v.tempId,
+      label: variantLabel(v, i),
+      hint: 'Shown when a shopper picks this variant.',
+    })),
+  ];
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -257,7 +313,7 @@ export default function ProductForm() {
     try {
       const finalSlug = slug || generateSlug(name);
       const payload = {
-        name, slug: finalSlug, sku, description, categoryId,
+        name, slug: finalSlug, productCode: productCode.trim() || null, description, categoryId,
         brandId: brandId || null,
         roomTags: roomTags ? roomTags.split(',').map(t => t.trim()) : null,
         specifications: specifications ? JSON.parse(specifications) : null,
@@ -268,19 +324,22 @@ export default function ProductForm() {
           tempId: v.tempId,
           finish: v.finish || null,
           size: v.size || null,
-          sku: v.sku,
+          productCode: v.productCode.trim() || null,
           mrp: v.mrp,
           sellingPrice: v.sellingPrice,
           stockQuantity: v.stockQuantity,
           isOnSale: v.isOnSale,
           salePrice: v.salePrice || null,
         })),
-        images: images.map(img => ({
-          url: img.url,
-          altText: img.altText || null,
-          sortOrder: img.sortOrder,
-          tempVariantId: img.tempVariantId || null,
-        })),
+        // sortOrder is per group, so each variant's photos keep their own running order
+        images: [...imagesByGroup.entries()].flatMap(([groupKey, groupImages]) =>
+          groupImages.map((img, idx) => ({
+            url: img.url,
+            altText: img.altText || null,
+            sortOrder: idx,
+            tempVariantId: groupKey || null,
+          }))
+        ),
       };
 
       if (isEditing) {
@@ -360,11 +419,14 @@ export default function ProductForm() {
               <p className="text-[11px] text-text-muted mt-1">Auto-generated from name. Edit or click ↺ to regenerate.</p>
             </div>
             <div>
-              <label htmlFor="prod-sku" className="block text-sm font-medium text-text mb-1">SKU *</label>
-              <input id="prod-sku" type="text" value={sku} required
-                onChange={(e) => setSku(e.target.value)}
+              <label htmlFor="prod-code" className="block text-sm font-medium text-text mb-1">
+                Product Code <span className="text-text-muted font-normal">(optional)</span>
+              </label>
+              <input id="prod-code" type="text" value={productCode}
+                onChange={(e) => setProductCode(e.target.value)}
                 className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
                 placeholder="ABPATEL-CH-001" />
+              <p className="text-[11px] text-text-muted mt-1">Your internal reference. Leave blank if you don't use one.</p>
             </div>
             <div>
               <label htmlFor="prod-status" className="block text-sm font-medium text-text mb-1">Status</label>
@@ -446,7 +508,12 @@ export default function ProductForm() {
             {variants.map((variant, index) => (
               <div key={variant.tempId} className="bg-bg rounded-lg border border-border p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-medium text-text-muted">Variant {index + 1}</span>
+                  <span className="text-xs font-medium text-text-muted">
+                    Variant {index + 1}
+                    {(variant.finish || variant.size || variant.productCode) && (
+                      <span className="text-text/70"> · {variantLabel(variant, index)}</span>
+                    )}
+                  </span>
                   {variants.length > 1 && (
                     <Button type="button" onClick={() => removeVariant(index)}
                       className="text-text-muted hover:text-error cursor-pointer transition-colors">
@@ -461,8 +528,8 @@ export default function ProductForm() {
                   <input type="text" value={variant.size} placeholder="Size (e.g. 6 inch)"
                     onChange={(e) => updateVariant(index, 'size', e.target.value)}
                     className="px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all" />
-                  <input type="text" value={variant.sku} placeholder="Variant SKU *" required
-                    onChange={(e) => updateVariant(index, 'sku', e.target.value)}
+                  <input type="text" value={variant.productCode} placeholder="Product Code (optional)"
+                    onChange={(e) => updateVariant(index, 'productCode', e.target.value)}
                     className="px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-accent/30 transition-all" />
                   <input type="number" value={variant.stockQuantity} placeholder="Stock"
                     onChange={(e) => updateVariant(index, 'stockQuantity', parseInt(e.target.value) || 0)}
@@ -490,34 +557,92 @@ export default function ProductForm() {
           </div>
         </section>
 
-        {/* Images */}
+        {/* Photos — one group per variant, plus a shared fallback group */}
         <section className="bg-surface rounded-xl border border-border p-5">
-          <h2 className="font-heading text-base font-semibold text-text mb-4">Images</h2>
+          <h2 className="font-heading text-base font-semibold text-text mb-1">Photos</h2>
+          <p className="text-[11px] text-text-muted mb-5">
+            Add as many photos as you like to each variant. The storefront swaps the gallery
+            when a shopper changes variant, and falls back to the shared photos for variants
+            that have none of their own.
+          </p>
 
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 mb-4">
-            {images.map((img, index) => (
-              <div key={index} className="relative group aspect-square rounded-lg border border-border overflow-hidden bg-bg-alt">
-                <img src={img.url} alt={img.altText || 'Product image'} className="w-full h-full object-cover" />
-                <Button type="button" onClick={() => removeImage(index)}
-                  className="absolute top-1 right-1 w-6 h-6 bg-error text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              </div>
-            ))}
+          <div className="space-y-5">
+            {imageGroups.map(group => {
+              const groupImages = imagesByGroup.get(group.key) || [];
+              const isUploading = uploadingGroup === group.key;
+              return (
+                <div key={group.key || 'shared'} className="bg-bg rounded-lg border border-border p-4">
+                  <div className="flex items-baseline justify-between gap-3 mb-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-text truncate">{group.label}</p>
+                      <p className="text-[11px] text-text-muted">{group.hint}</p>
+                    </div>
+                    <span className="text-[11px] text-text-muted shrink-0">
+                      {groupImages.length} {groupImages.length === 1 ? 'photo' : 'photos'}
+                    </span>
+                  </div>
 
-            {/* Upload button */}
-            <label className="aspect-square rounded-lg border-2 border-dashed border-border hover:border-accent/40 flex flex-col items-center justify-center cursor-pointer transition-colors">
-              {uploading ? (
-                <Loader2 className="w-5 h-5 text-text-muted animate-spin" />
-              ) : (
-                <>
-                  <ImagePlus className="w-5 h-5 text-text-muted mb-1" />
-                  <span className="text-xs text-text-muted">Upload</span>
-                </>
-              )}
-              <input type="file" multiple accept="image/*" className="hidden"
-                onChange={(e) => handleImageUpload(e.target.files)} disabled={uploading} />
-            </label>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                    {groupImages.map((img, idx) => (
+                      <div key={img.uid} className="space-y-1">
+                        <div className="relative group aspect-square rounded-lg border border-border overflow-hidden bg-bg-alt">
+                          <img src={img.url} alt={img.altText || 'Product photo'} className="w-full h-full object-cover" />
+                          {idx === 0 && (
+                            <span className="absolute bottom-1 left-1 bg-primary/90 text-white text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded">
+                              Main
+                            </span>
+                          )}
+                          <Button type="button" onClick={() => removeImage(img.uid)}
+                            title="Remove photo"
+                            className="absolute top-1 right-1 w-6 h-6 bg-error text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                          <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button type="button" onClick={() => shiftImage(img.uid, -1)}
+                              title="Move earlier" disabled={idx === 0}
+                              className="w-6 h-6 bg-surface/90 text-text rounded-full flex items-center justify-center cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
+                              <ChevronLeft className="w-3 h-3" />
+                            </Button>
+                            <Button type="button" onClick={() => shiftImage(img.uid, 1)}
+                              title="Move later" disabled={idx === groupImages.length - 1}
+                              className="w-6 h-6 bg-surface/90 text-text rounded-full flex items-center justify-center cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
+                              <ChevronRight className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        {imageGroups.length > 1 && (
+                          <select
+                            value={img.tempVariantId}
+                            onChange={(e) => moveImageToGroup(img.uid, e.target.value)}
+                            title="Move this photo to another variant"
+                            className="w-full px-1.5 py-1 bg-surface border border-border rounded text-[10px] text-text-muted focus:outline-none focus:ring-1 focus:ring-accent/30 cursor-pointer"
+                          >
+                            {imageGroups.map(g => (
+                              <option key={g.key || 'shared'} value={g.key}>{g.label}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Upload into this group */}
+                    <label className="aspect-square rounded-lg border-2 border-dashed border-border hover:border-accent/40 flex flex-col items-center justify-center cursor-pointer transition-colors">
+                      {isUploading ? (
+                        <Loader2 className="w-5 h-5 text-text-muted animate-spin" />
+                      ) : (
+                        <>
+                          <ImagePlus className="w-5 h-5 text-text-muted mb-1" />
+                          <span className="text-xs text-text-muted">Upload</span>
+                        </>
+                      )}
+                      <input type="file" multiple accept="image/*" className="hidden"
+                        onChange={(e) => { handleImageUpload(e.target.files, group.key); e.target.value = ''; }}
+                        disabled={uploadingGroup !== null} />
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
 

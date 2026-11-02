@@ -7,12 +7,12 @@ import Button from '../../components/ui/Button';
 
 interface ParsedRow {
   ProductName: string;
-  ProductSKU: string;
+  ProductCode?: string;
   CategorySlug: string;
   BrandName?: string;
   Description?: string;
   Status?: string;
-  VariantSKU: string;
+  VariantCode?: string;
   VariantFinish?: string;
   VariantSize?: string;
   MRP: number;
@@ -51,7 +51,7 @@ export default function BulkProductUpload() {
         
         // Check for required columns in the first row
         const firstRow = parsedData[0];
-        const required = ['ProductName', 'ProductSKU', 'CategorySlug', 'VariantSKU', 'MRP', 'SellingPrice', 'Stock'];
+        const required = ['ProductName', 'CategorySlug', 'MRP', 'SellingPrice', 'Stock'];
         const missing = required.filter(col => !(col in firstRow));
         if (missing.length > 0) {
           throw new Error(`Missing required columns: ${missing.join(', ')}`);
@@ -78,16 +78,18 @@ export default function BulkProductUpload() {
     setSuccess('');
 
     try {
-      // Group variants by product SKU
+      // Group variants per product. Product Code is optional, so rows without
+      // one are grouped by product name instead.
       const productsMap = new Map<string, any>();
 
       data.forEach(row => {
-        const prodSKU = row.ProductSKU.toString().trim();
+        const prodCode = row.ProductCode ? row.ProductCode.toString().trim() : '';
+        const groupKey = prodCode || `name:${row.ProductName.toString().trim().toLowerCase()}`;
         
-        if (!productsMap.has(prodSKU)) {
-          productsMap.set(prodSKU, {
+        if (!productsMap.has(groupKey)) {
+          productsMap.set(groupKey, {
             name: row.ProductName,
-            sku: prodSKU,
+            productCode: prodCode || null,
             categorySlug: row.CategorySlug,
             brandName: row.BrandName || null,
             description: row.Description || '',
@@ -97,8 +99,8 @@ export default function BulkProductUpload() {
           });
         }
 
-        productsMap.get(prodSKU).variants.push({
-          sku: row.VariantSKU.toString().trim(),
+        productsMap.get(groupKey).variants.push({
+          productCode: row.VariantCode ? (row.VariantCode.toString().trim() || null) : null,
           finish: row.VariantFinish || null,
           size: row.VariantSize || null,
           mrp: parseFloat(row.MRP.toString()) || 0,
@@ -123,12 +125,12 @@ export default function BulkProductUpload() {
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([{
       ProductName: 'Premium Brass Handle',
-      ProductSKU: 'ABPATEL-CH-001',
+      ProductCode: 'ABPATEL-CH-001', // Optional
       CategorySlug: 'cabinet-handles', // Must match existing category slug
       BrandName: 'ABPATEL', // Optional, must match existing
       Description: 'High quality brass handle',
       Status: 'ACTIVE', // DRAFT, ACTIVE, ARCHIVED
-      VariantSKU: 'ABPATEL-CH-001-AB-6',
+      VariantCode: 'ABPATEL-CH-001-AB-6', // Optional
       VariantFinish: 'Antique Brass',
       VariantSize: '6 inch',
       MRP: 1500,
@@ -159,7 +161,8 @@ export default function BulkProductUpload() {
             <h2 className="font-heading font-semibold text-text mb-3">Instructions</h2>
             <ul className="text-sm text-text-muted space-y-2 list-disc pl-4">
               <li>Download the template file first to see the exact format.</li>
-              <li><strong className="text-text">ProductSKU</strong> groups variants together. Rows with the same ProductSKU will be combined into one product with multiple variants.</li>
+              <li><strong className="text-text">ProductCode</strong> and <strong className="text-text">VariantCode</strong> are optional — leave them blank if you do not use internal codes.</li>
+              <li>Rows are combined into one product by <strong className="text-text">ProductCode</strong>, or by <strong className="text-text">ProductName</strong> when no code is given. Each row becomes one variant.</li>
               <li><strong className="text-text">CategorySlug</strong> is required. The category must already exist in the system.</li>
               <li><strong className="text-text">BrandName</strong> must exactly match an existing brand name, or leave empty.</li>
               <li><strong className="text-text">ImageURLs</strong> should be public links separated by commas. The system will save these URLs directly. We recommend uploading files to an image host (like Cloudinary, Imgur, or public AWS S3) and pasting the URLs here.</li>
@@ -242,9 +245,9 @@ export default function BulkProductUpload() {
               <thead className="sticky top-0 bg-bg-alt border-b border-border z-10">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-text-muted">Product Name</th>
-                  <th className="text-left px-4 py-3 font-medium text-text-muted">Product SKU</th>
+                  <th className="text-left px-4 py-3 font-medium text-text-muted">Product Code</th>
                   <th className="text-left px-4 py-3 font-medium text-text-muted">Category Slug</th>
-                  <th className="text-left px-4 py-3 font-medium text-text-muted">Variant SKU</th>
+                  <th className="text-left px-4 py-3 font-medium text-text-muted">Variant Code</th>
                   <th className="text-left px-4 py-3 font-medium text-text-muted">Finish</th>
                   <th className="text-left px-4 py-3 font-medium text-text-muted">Size</th>
                   <th className="text-left px-4 py-3 font-medium text-text-muted">MRP</th>
@@ -256,9 +259,9 @@ export default function BulkProductUpload() {
                 {data.slice(0, 100).map((row, i) => (
                   <tr key={i} className="hover:bg-bg-alt/30 transition-colors">
                     <td className="px-4 py-2 truncate max-w-[150px]">{row.ProductName}</td>
-                    <td className="px-4 py-2">{row.ProductSKU}</td>
+                    <td className="px-4 py-2">{row.ProductCode || '—'}</td>
                     <td className="px-4 py-2">{row.CategorySlug}</td>
-                    <td className="px-4 py-2">{row.VariantSKU}</td>
+                    <td className="px-4 py-2">{row.VariantCode || '—'}</td>
                     <td className="px-4 py-2">{row.VariantFinish || '-'}</td>
                     <td className="px-4 py-2">{row.VariantSize || '-'}</td>
                     <td className="px-4 py-2">₹{row.MRP}</td>

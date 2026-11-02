@@ -65,7 +65,7 @@ router.post('/checkout', authenticate, async (req: AuthRequest, res) => {
         variantId: item.variantId || null,
         productName: item.productName,
         variantLabel: item.variantLabel || null,
-        sku: item.sku,
+        productCode: item.productCode || null,
         quantity: item.quantity,
         unitPrice: item.unitPrice.toString(),
         gstRate: gstRate.toString(),
@@ -344,7 +344,7 @@ router.get('/:id/invoice', async (req, res) => {
       items: order.items.map(item => ({
         productName: item.productName,
         variantLabel: item.variantLabel,
-        sku: item.sku,
+        productCode: item.productCode,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         gstRate: item.gstRate,

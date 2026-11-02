@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ChevronRight, Minus, Plus, MessageCircle, Package, ShieldCheck, Truck } from 'lucide-react';
 import api from '../../lib/api';
@@ -11,7 +11,7 @@ interface Variant {
   id: string;
   finish: string | null;
   size: string | null;
-  sku: string;
+  productCode: string | null;
   mrp: string;
   sellingPrice: string;
   stockQuantity: number;
@@ -31,7 +31,7 @@ interface ProductDetail {
   id: string;
   name: string;
   slug: string;
-  sku: string;
+  productCode: string | null;
   description: string | null;
   specifications: Record<string, string> | null;
   roomTags: string[] | null;
@@ -83,6 +83,25 @@ export default function ProductDetailPage() {
     }
   }, [product]);
 
+  // Gallery follows the selected variant: its own photos first, then the shared
+  // ones. A variant with no photos of its own falls back to the shared set.
+  const galleryImages = useMemo(() => {
+    const all = product?.images ?? [];
+    if (all.length === 0) return [];
+    const shared = all.filter(img => !img.variantId);
+    const forVariant = selectedVariant
+      ? all.filter(img => img.variantId === selectedVariant.id)
+      : [];
+    if (forVariant.length > 0) return [...forVariant, ...shared];
+    return shared.length > 0 ? shared : all;
+  }, [product, selectedVariant]);
+
+  // Changing variant lands the shopper on that variant's first photo
+  const selectVariant = (variant: Variant) => {
+    setSelectedVariant(variant);
+    setSelectedImageIndex(0);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center">
@@ -113,10 +132,10 @@ export default function ProductDetailPage() {
   const uniqueFinishes = [...new Set(product.variants.map(v => v.finish).filter(Boolean))] as string[];
   const uniqueSizes = [...new Set(product.variants.map(v => v.size).filter(Boolean))] as string[];
 
-  const whatsAppMessage = `Hi, I'm interested in: ${product.name}${selectedVariant ? ` (${selectedVariant.finish || ''} ${selectedVariant.size || ''})` : ''} — SKU: ${selectedVariant?.sku || product.sku}`;
+  const productCode = selectedVariant?.productCode || product.productCode;
+  const variantNote = selectedVariant ? ` (${[selectedVariant.finish, selectedVariant.size].filter(Boolean).join(' ')})` : '';
+  const whatsAppMessage = `Hi, I'm interested in: ${product.name}${variantNote}${productCode ? ` — Product Code: ${productCode}` : ''}`;
   const whatsAppUrl = `https://wa.me/919876543210?text=${encodeURIComponent(whatsAppMessage)}`;
-
-  const allImages = product.images;
 
 
 
@@ -146,10 +165,10 @@ export default function ProductDetailPage() {
           <div className="space-y-4">
             {/* Main Image */}
             <div className="relative aspect-square overflow-hidden rounded-sm bg-bg-alt">
-              {allImages.length > 0 ? (
+              {galleryImages.length > 0 ? (
                 <img
-                  src={allImages[selectedImageIndex]?.url}
-                  alt={allImages[selectedImageIndex]?.altText || product.name}
+                  src={galleryImages[selectedImageIndex]?.url}
+                  alt={galleryImages[selectedImageIndex]?.altText || product.name}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -170,9 +189,9 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Thumbnail Strip */}
-            {allImages.length > 1 && (
+            {galleryImages.length > 1 && (
               <div className="flex gap-3 overflow-x-auto pb-2">
-                {allImages.map((img, idx) => (
+                {galleryImages.map((img, idx) => (
                   <Button
                     key={img.id}
                     onClick={() => setSelectedImageIndex(idx)}
@@ -193,7 +212,9 @@ export default function ProductDetailPage() {
               <p className="text-xs text-text-muted uppercase tracking-widest mb-2">{product.brand.name}</p>
             )}
             <h1 className="font-heading text-2xl sm:text-3xl font-bold text-primary mb-3">{product.name}</h1>
-            <p className="text-xs text-text-muted mb-6">SKU: {selectedVariant?.sku || product.sku}</p>
+            {productCode && (
+              <p className="text-xs text-text-muted mb-6">Product Code: {productCode}</p>
+            )}
 
             {/* Price */}
             <div className="flex items-baseline gap-3 mb-6">
@@ -228,7 +249,7 @@ export default function ProductDetailPage() {
                     return (
                       <Button
                         key={finish}
-                        onClick={() => matchingVariant && setSelectedVariant(matchingVariant)}
+                        onClick={() => matchingVariant && selectVariant(matchingVariant)}
                         className={`px-4 py-2 text-sm rounded-sm border transition-all ${
                           isSelected
                             ? 'border-accent bg-accent/5 text-accent font-semibold'
@@ -254,7 +275,7 @@ export default function ProductDetailPage() {
                     return (
                       <Button
                         key={size}
-                        onClick={() => matchingVariant && setSelectedVariant(matchingVariant)}
+                        onClick={() => matchingVariant && selectVariant(matchingVariant)}
                         className={`px-4 py-2 text-sm rounded-sm border transition-all ${
                           isSelected
                             ? 'border-accent bg-accent/5 text-accent font-semibold'
@@ -312,8 +333,8 @@ export default function ProductDetailPage() {
                     variantId: selectedVariant.id,
                     name: product.name,
                     slug: product.slug,
-                    sku: selectedVariant.sku,
-                    imageUrl: product.images?.[0]?.url || null,
+                    productCode: selectedVariant.productCode,
+                    imageUrl: galleryImages[0]?.url || null,
                     finish: selectedVariant.finish,
                     size: selectedVariant.size,
                     unitPrice: displayPrice,

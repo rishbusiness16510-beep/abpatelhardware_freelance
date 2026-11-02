@@ -282,7 +282,7 @@ export default function CheckoutPage() {
           variantId: item.variantId,
           productName: item.name,
           variantLabel: [item.finish, item.size].filter(Boolean).join(' / ') || null,
-          sku: item.sku,
+          productCode: item.productCode || null,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           gstRate: item.gstRate,

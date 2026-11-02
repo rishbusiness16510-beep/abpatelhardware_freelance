@@ -8,7 +8,7 @@ interface ProductVariant {
   id: string;
   finish: string | null;
   size: string | null;
-  sku: string;
+  productCode: string | null;
   mrp: string;
   sellingPrice: string;
   stockQuantity: number;
@@ -25,7 +25,7 @@ interface Product {
   id: string;
   name: string;
   slug: string;
-  sku: string;
+  productCode: string | null;
   status: 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
   isFeatured: boolean;
   isNewArrival: boolean;
@@ -138,9 +138,9 @@ export default function ProductList() {
   };
 
   const exportCSV = () => {
-    const headers = ['Name', 'SKU', 'Status', 'Category', 'Brand', 'Min Price', 'Stock'];
+    const headers = ['Name', 'Product Code', 'Status', 'Category', 'Brand', 'Min Price', 'Stock'];
     const rows = products.map(p => [
-      p.name, p.sku, p.status, p.category?.name || '', p.brand?.name || '',
+      p.name, p.productCode || '', p.status, p.category?.name || '', p.brand?.name || '',
       getMinPrice(p.variants), String(getTotalStock(p.variants))
     ]);
     const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
@@ -194,7 +194,7 @@ export default function ProductList() {
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search by name or SKU..."
+              placeholder="Search by name or product code..."
               className="w-full pl-10 pr-4 py-2 bg-bg border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
             />
           </div>
@@ -258,7 +258,7 @@ export default function ProductList() {
               <thead>
                 <tr className="border-b border-border bg-bg-alt/50">
                   <th className="text-left px-4 py-3 font-medium text-text-muted">Product</th>
-                  <th className="text-left px-4 py-3 font-medium text-text-muted hidden md:table-cell">SKU</th>
+                  <th className="text-left px-4 py-3 font-medium text-text-muted hidden md:table-cell">Product Code</th>
                   <th className="text-left px-4 py-3 font-medium text-text-muted hidden lg:table-cell">Category</th>
                   <th className="text-left px-4 py-3 font-medium text-text-muted">Price</th>
                   <th className="text-left px-4 py-3 font-medium text-text-muted">Stock</th>
@@ -286,7 +286,7 @@ export default function ProductList() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-text-muted hidden md:table-cell">{product.sku}</td>
+                    <td className="px-4 py-3 text-text-muted hidden md:table-cell">{product.productCode || '—'}</td>
                     <td className="px-4 py-3 text-text-muted hidden lg:table-cell">{product.category?.name || '—'}</td>
                     <td className="px-4 py-3 font-medium text-text">{getMinPrice(product.variants)}</td>
                     <td className="px-4 py-3">

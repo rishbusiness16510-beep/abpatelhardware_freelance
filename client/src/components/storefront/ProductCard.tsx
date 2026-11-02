@@ -17,14 +17,18 @@ interface ProductCardProps {
       finish: string | null;
       stockQuantity: number;
     }>;
-    images: Array<{ url: string; altText: string | null }>;
+    images: Array<{ url: string; altText: string | null; variantId?: string | null }>;
     isNewArrival: boolean;
   };
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
-  const primaryImage = product.images?.[0]?.url || 'https://via.placeholder.com/400x400?text=No+Image';
-  const secondaryImage = product.images?.[1]?.url;
+  // Shared photos represent the product as a whole; only fall back to
+  // variant-specific ones when there are no shared photos at all.
+  const sharedImages = product.images?.filter(img => !img.variantId) ?? [];
+  const cardImages = sharedImages.length > 0 ? sharedImages : (product.images ?? []);
+  const primaryImage = cardImages[0]?.url || 'https://via.placeholder.com/400x400?text=No+Image';
+  const secondaryImage = cardImages[1]?.url;
 
   const lowestVariant = product.variants?.reduce((lowest, v) => {
     const price = parseFloat(v.sellingPrice);
@@ -54,7 +58,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       <Link to={`/product/${product.slug}`} className="relative aspect-square overflow-hidden bg-bg-alt rounded-sm mb-4 block">
         <img
           src={primaryImage}
-          alt={product.images?.[0]?.altText || product.name}
+          alt={cardImages[0]?.altText || product.name}
           className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 ${secondaryImage ? 'group-hover:opacity-0' : 'group-hover:scale-105'}`}
           loading="lazy"
         />
